@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "items": [
+    {"assetId":"demo-inventory","assetNamespace":"demo","title":"Demo Inventory 蓝图背包","distributionMethod":"ASSET_PACK","projectVersions":[{"artifactId":"demo-inventory-58","engineVersions":["UE_5.8"]},{"artifactId":"demo-inventory-57","engineVersions":["UE_5.7"]}]},
+    {"assetId":"demo-dialogue","assetNamespace":"demo","title":"Demo Dialogue 对话插件","distributionMethod":"ENGINE_PLUGIN","projectVersions":[{"artifactId":"demo-dialogue-58","engineVersions":["UE_5.8"]}]},
+    {"assetId":"demo-forest","assetNamespace":"demo","title":"Demo Forest 森林场景","distributionMethod":"ASSET_PACK","projectVersions":[{"artifactId":"demo-forest-56","engineVersions":["UE_5.6","UE_5.7"]}]}
+  ]
+}

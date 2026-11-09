@@ -1,0 +1,50 @@
+name: Windows tests
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md', '*.md']
+  pull_request:
+    paths-ignore: ['**/*.md', '*.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install .
+      - run: python -m unittest discover -s tests -v
+      - run: python -m compileall -q src tests
+      - shell: pwsh
+        run: |
+          $env:FAB_LIBRARY_HOME = Join-Path $env:RUNNER_TEMP 'fab-library-smoke'
+          fab-library --json doctor
+          fab-library --json library sync --fixture examples/demo-library.json
+          Push-Location $env:RUNNER_TEMP
+          fab-library --help
+          fab-library --json library list --engine 5.8 --limit 1
+          fab-library --json download demo-inventory --engine 5.8 --out (Join-Path $env:RUNNER_TEMP 'fake-download') --dry-run
+          Pop-Location
+      - name: Build offline wheels
+        run: python -m pip wheel --wheel-dir wheels .
+      - name: Test Windows installer and installed command
+        shell: pwsh
+        run: |
+          $env:CODEX_HOME = Join-Path $env:RUNNER_TEMP 'fab-test-codex'
+          $env:FAB_LIBRARY_HOME = Join-Path $env:RUNNER_TEMP 'fab-installer-state'
+          $installRoot = Join-Path $env:RUNNER_TEMP 'Fab Library Test'
+          & .\scripts\install-windows.ps1 -InstallRoot $installRoot
+          if ($LASTEXITCODE -ne 0) { throw 'Installer failed' }
+          if (-not (Test-Path (Join-Path $env:CODEX_HOME 'skills\fab-library\SKILL.md'))) { throw 'Skill missing' }
+          $command = Join-Path $installRoot 'bin\fab-library.cmd'
+          Push-Location $env:RUNNER_TEMP
+          & $command --json doctor
+          if ($LASTEXITCODE -ne 0) { throw 'Installed command failed' }
+          Pop-Location

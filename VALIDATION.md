@@ -12,7 +12,11 @@ Passed locally:
 - Finite promotion plans: no claims while planning or dry-running, only snapshot items are applied, expired plans/account changes stop execution, and partial failure preserves a receipt.
 - Companion Skill validated. No scheduling/background automation is implemented.
 
-Windows CI additionally covers Python 3.11 and 3.13, wheel builds, the PowerShell installer, installation paths containing spaces, Skill installation, the pinned optional FabCLI binary and no-login store diagnostics. The run result will be recorded before publishing this release.
+Windows CI passed on Python 3.11 and 3.13: all 37 tests, wheel builds, the PowerShell installer, installation paths containing spaces, Skill installation, the pinned optional FabCLI binary and no-login store diagnostics.
+
+Run: https://github.com/200410080379/fab-library/actions/runs/42589142044
+
+Tested source: `b1fd37e95c4c7bd8e07a72fc4dca7b922603ae72`. Subsequent release updates change documentation only.
 
 Not verified with a real Epic account:
 

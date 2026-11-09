@@ -11,4 +11,8 @@ Local macOS validation:
 
 The native store helper permits only specific Fab read endpoints and the exact-offer add-to-library endpoint. It does not accept arbitrary JavaScript/hosts, export browser cookies, solve challenges or weaken TLS verification. WebKit uses an isolated persistent profile. OAuth session files are user-readable only and are not encrypted on macOS.
 
-New Windows and macOS CI runs validate the 0.3.0 code. Prior 0.2.0 Windows validation: https://github.com/200410080379/fab-library/actions/runs/42589142044.
+All 46 tests passed on Windows (Python 3.11 and 3.13) and macOS CI. The native Swift helper also compiled and passed its request-allowlist self-test on the hosted Mac.
+
+- Windows: https://github.com/200410080379/fab-library/actions/runs/42603925760
+- macOS: https://github.com/200410080379/fab-library/actions/runs/42603925840
+- Tested source: `5355c3b11fe3bcd277241b5087d52cab3885395f`; release-documentation updates do not change executable code.

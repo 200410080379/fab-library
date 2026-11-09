@@ -1,6 +1,7 @@
 param(
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\fab-library'),
-    [switch]$SkipSkill
+    [switch]$SkipSkill,
+    [switch]$WithStore
 )
 $ErrorActionPreference = 'Stop'
 $PackageRoot = Split-Path $PSScriptRoot -Parent
@@ -22,7 +23,7 @@ if (-not (Test-Path (Join-Path $Venv 'Scripts\python.exe'))) {
     if ($LASTEXITCODE -ne 0) { throw 'Could not create the Python environment.' }
 }
 $Python = Join-Path $Venv 'Scripts\python.exe'
-& $Python -m pip install --no-index --find-links $WheelDir --upgrade 'fab-library==0.1.0'
+& $Python -m pip install --no-index --find-links $WheelDir --upgrade 'fab-library==0.2.0'
 if ($LASTEXITCODE -ne 0) { throw 'Package installation failed.' }
 $Bin = Join-Path $InstallRoot 'bin'
 New-Item -ItemType Directory -Path $Bin -Force | Out-Null
@@ -36,11 +37,16 @@ if (($UserPath -split ';') -notcontains $Bin) {
     [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
 }
 $env:Path = $Bin + ';' + $env:Path
+if ($WithStore) {
+    & (Join-Path $PSScriptRoot 'install-store-windows.ps1') -InstallRoot $InstallRoot
+}
 if (-not $SkipSkill) {
     $CodexRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
     $SkillDir = Join-Path $CodexRoot 'skills\fab-library'
     if (Test-Path $SkillDir) {
-        $Backup = $SkillDir + '.backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
+        $BackupRoot = Join-Path $CodexRoot 'skill-backups'
+        New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
+        $Backup = Join-Path $BackupRoot ('fab-library-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
         Move-Item -LiteralPath $SkillDir -Destination $Backup
         Write-Host "Previous skill saved at $Backup"
     }

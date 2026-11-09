@@ -17,6 +17,7 @@ SHA256SUMS.txt
 *.db-*
 session.bin
 token.json
+store-session/
 .env
 .env.*
 !.env.example

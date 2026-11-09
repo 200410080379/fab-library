@@ -12,6 +12,8 @@ from . import __version__
 from .catalog import Catalog, Failure, engine_version, state_home
 from .provider import Provider
 from .service import download, plan_download
+from .store import Store, Shopping
+from .freebies import create_plan, apply_plan
 
 
 class Parser(argparse.ArgumentParser):
@@ -153,6 +155,80 @@ def parser():
     )
     d.add_argument("--limit", type=bounded, default=25)
     d.add_argument("--offset", type=offset_value, default=0)
+    a = s.add_parser(
+        "store",
+        help="Search Fab, inspect live offers and claim explicitly free listings",
+    ).add_subparsers(dest="action", required=True)
+    a.add_parser("doctor", help="Check the optional FabCLI store backend and session")
+    a.add_parser("login", help="Open FabCLI's Epic/Fab sign-in window on this computer")
+    a.add_parser("account", help="Show the store account without email or credentials")
+    for command in ("search", "free"):
+        search = a.add_parser(
+            command, help="Read one bounded page of UE marketplace listings"
+        )
+        search.add_argument("--query", default="")
+        search.add_argument("--limit", type=bounded, default=20)
+        search.add_argument("--cursor")
+        filters = search.add_mutually_exclusive_group()
+        filters.add_argument("--free", action="store_true")
+        filters.add_argument("--limited-time", action="store_true")
+    q = a.add_parser(
+        "quote", help="Read current prices, ownership and official purchase URL"
+    )
+    q.add_argument("listing")
+    c = a.add_parser(
+        "claim",
+        help="Preview a zero-price claim; --execute submits only reviewed free listings",
+    )
+    c.add_argument("listing")
+    mode = c.add_mutually_exclusive_group()
+    mode.add_argument("--execute", action="store_true")
+    mode.add_argument(
+        "--dry-run", action="store_true", help="Explicit preview (the default)"
+    )
+    c.add_argument(
+        "--expected-account", help="Store account ID from the reviewed preview"
+    )
+    c.add_argument(
+        "--expected-offer",
+        help="Selected zero-price offer ID from the reviewed preview",
+    )
+    a = s.add_parser(
+        "shopping",
+        help="Local priced-resource shortlist and official links; no cart or payment writes",
+    ).add_subparsers(dest="action", required=True)
+    add = a.add_parser("add", help="Save one exact offer quote in the local shortlist")
+    add.add_argument("listing")
+    add.add_argument("--offer", required=True)
+    add.add_argument("--dry-run", action="store_true")
+    for command in ("list", "links"):
+        ls = a.add_parser(
+            command, help="Read timestamped local quotes and official listing links"
+        )
+        ls.add_argument("--limit", type=bounded, default=25)
+        ls.add_argument("--offset", type=offset_value, default=0)
+    remove = a.add_parser("remove", help="Remove a local shortlist item")
+    remove.add_argument("listing")
+    a = s.add_parser(
+        "freebies",
+        help="Preview and apply a finite list of current free promotions; no scheduling",
+    ).add_subparsers(dest="action", required=True)
+    plan = a.add_parser(
+        "plan", help="Save a reviewable, 30-minute claim plan without claiming anything"
+    )
+    plan.add_argument("--out", required=True, type=Path)
+    plan.add_argument("--limit", type=bounded, default=20)
+    plan.add_argument(
+        "--listing",
+        action="append",
+        help="Exact Fab listing UUID/URL; repeat for an explicit list instead of discovery",
+    )
+    apply = a.add_parser(
+        "apply",
+        help="Claim only this plan's exact items, with fresh price/account checks",
+    )
+    apply.add_argument("plan_file", type=Path)
+    apply.add_argument("--dry-run", action="store_true")
     return p
 
 
@@ -182,7 +258,51 @@ def paginated(rows, limit, offset):
     }
 
 
-def dispatch(args, home, provider_factory=Provider):
+def dispatch(args, home, provider_factory=Provider, store_factory=Store):
+    if args.command == "freebies":
+        store = store_factory(home)
+        if args.action == "plan":
+            return create_plan(store, args.out, args.limit, args.listing)
+        return apply_plan(store, home, args.plan_file, args.dry_run)
+    if args.command in {"store", "shopping"}:
+        store = store_factory(home)
+        if args.command == "shopping":
+            shopping = Shopping(home)
+            try:
+                if args.action == "add":
+                    return shopping.add(
+                        store.quote(args.listing), args.offer, args.dry_run
+                    )
+                if args.action == "remove":
+                    return shopping.remove(args.listing)
+                return shopping.list(args.limit, args.offset)
+            finally:
+                shopping.db.close()
+        if args.action == "doctor":
+            return store.doctor()
+        if args.action == "login":
+            store.client.call("auth", "login")
+            return {"account": store.account(), "session": store.doctor()}
+        if args.action == "account":
+            return store.account()
+        if args.action in {"search", "free"}:
+            if args.limit > 100:
+                raise Failure(
+                    "invalid_limit",
+                    "Store pages support --limit 1 to 100; continue with --cursor.",
+                )
+            return store.search(
+                args.query,
+                free=args.free or (args.action == "free" and not args.limited_time),
+                limited_time=args.limited_time,
+                limit=args.limit,
+                cursor=args.cursor,
+            )
+        if args.action == "quote":
+            return store.quote(args.listing)
+        return store.claim(
+            args.listing, args.execute, args.expected_account, args.expected_offer
+        )
     provider = provider_factory(home)
     if args.command == "auth":
         if args.action == "login":
@@ -441,7 +561,7 @@ def main(argv=None):
                 "ok": False,
                 "error": {
                     "kind": "interrupted",
-                    "message": "Stopped. Retry the same destination to resume.",
+                    "message": "Stopped. Resume downloads with the same destination; check claim receipts and ownership before retrying claims.",
                 },
             },
             130,

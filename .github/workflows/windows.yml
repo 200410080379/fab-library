@@ -40,11 +40,13 @@ jobs:
           $env:CODEX_HOME = Join-Path $env:RUNNER_TEMP 'fab-test-codex'
           $env:FAB_LIBRARY_HOME = Join-Path $env:RUNNER_TEMP 'fab-installer-state'
           $installRoot = Join-Path $env:RUNNER_TEMP 'Fab Library Test'
-          & .\scripts\install-windows.ps1 -InstallRoot $installRoot
+          & .\scripts\install-windows.ps1 -InstallRoot $installRoot -WithStore
           if ($LASTEXITCODE -ne 0) { throw 'Installer failed' }
           if (-not (Test-Path (Join-Path $env:CODEX_HOME 'skills\fab-library\SKILL.md'))) { throw 'Skill missing' }
           $command = Join-Path $installRoot 'bin\fab-library.cmd'
           Push-Location $env:RUNNER_TEMP
           & $command --json doctor
           if ($LASTEXITCODE -ne 0) { throw 'Installed command failed' }
+          $store = & $command --json store doctor | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $store.data.available -ne $true -or $store.data.version -ne '0.1.0') { throw 'Store backend unavailable' }
           Pop-Location

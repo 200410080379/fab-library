@@ -1,27 +1,23 @@
-# Validation — 2026-11-09
+# Validation — v0.2.0 — 2026-11-09
 
-Environments: macOS with Python 3.13.13, and GitHub-hosted Windows with Python 3.11 and 3.13. Windows is the primary deployment platform.
+Local validation: macOS, Python 3.13.13. Windows is the primary deployment platform.
 
-Passed:
+Passed locally:
 
-- 17 unit/integration tests (`python -m unittest discover -s tests -v`).
-- Real backend used against synthetic offline HTTP responses: manifest parsing, chunk decoding, Unicode file assembly, SHA-1 verification, rejection of corrupted data, successful retry.
-- Pagination encoding, duplicate cursors, page bounds, atomic sync, preserved tags and credentials removed from catalog metadata.
-- Ambiguous titles, unsupported engine versions, fixture/live separation, offline dry runs, protected output folders, download receipts, queue claims/retries, Windows filename checks.
-- Ruff static checks and formatting; Python compileall.
-- Skill frontmatter/content validation.
-- Wheel built and installed into a clean virtual environment. Command invoked by name on PATH from `/private/tmp`, outside the source folder.
-- Installed `--help`, `--json doctor`, fixture sync, Chinese tags, pagination and download dry run.
-- Installed `library sync` without login returns structured `auth_required` and exit code 4, without opening a browser or prompting.
-- Original upstream wheel and source archive checked against PyPI SHA-256 release metadata.
-- Windows CI: all 17 tests on both Python versions, package build, offline-wheel installer, installation path containing spaces, user PATH setup, Skill installation and installed-command execution outside the source directory.
+- All 37 unit/integration tests, Python compile checks and Ruff checks/formatting.
+- Real download backend exercised against synthetic HTTP responses: manifest parsing, chunk decoding, Unicode files, SHA-1 verification, corrupted-data rejection and successful retry.
+- Catalog pagination/atomicity, tag preservation, exact version resolution, download preview, protected existing files, receipts, queue behavior and Windows filename checks.
+- Marketplace price changes, unknown/mixed prices, expired discounts, account/offer mismatches, already-owned skips, ownership verification and uncertain outcomes that must not be blindly retried.
+- Paid shopping remains local; exact offer selection, separate currency totals and canonical official URLs.
+- Finite promotion plans: no claims while planning or dry-running, only snapshot items are applied, expired plans/account changes stop execution, and partial failure preserves a receipt.
+- Companion Skill validated. No scheduling/background automation is implemented.
 
-Not yet verified:
+Windows CI additionally covers Python 3.11 and 3.13, wheel builds, the PowerShell installer, installation paths containing spaces, Skill installation, the pinned optional FabCLI binary and no-login store diagnostics. The run result will be recorded before publishing this release.
 
-- Live Epic authentication and encrypted Windows session round trips with the user's account.
-- The user's actual catalog, CDN connectivity and real asset download.
-- HTTP compatibility with future changes to Fab's undocumented endpoints.
+Not verified with a real Epic account:
 
-Windows CI passed: https://github.com/200410080379/fab-library/actions/runs/42580101755
+- Interactive Epic/Fab login and encrypted session persistence.
+- Real catalog queries, promotional eligibility, license selection, successful claims and CDN asset downloads.
+- Future changes to undocumented Fab endpoints.
 
-The tested source commit is `a5303f1997eea745034bdb29a2930de8bac61f3d`; the subsequent publication update changes documentation only. All demonstration resource records are synthetic.
+No live purchases or claims were made during development. All test listings/accounts are synthetic. v0.1.0's prior Windows validation remains available at https://github.com/200410080379/fab-library/actions/runs/42580101755.

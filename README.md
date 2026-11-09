@@ -1,4 +1,4 @@
-# Fab Library 0.1.0
+# Fab Library 0.2.0
 
 Windows 优先的个人 Fab 资源管家：通过 CLI + AI Skill，查询自己已拥有的 Unreal Engine 资源，维护中文标签，按引擎版本下载到独立目录。
 
@@ -14,8 +14,9 @@ A Windows-first CLI and AI skill for managing and downloading the Unreal Engine 
 - 按名称、中文标签、UE 版本搜索；精确 ID 查询；消歧；导出无凭据 JSON 快照。
 - 下载预览、独立目录下载、文件校验、失败续传、下载记录、串行队列。
 - 复用 `fab-downloader==1.3.0` 的登录、manifest 解析和分块下载，依赖版本固定。
-- 不提供资源购买/领取、自动安装进项目、商品图片库、语义向量搜索或更新检测。标签和下载历史仅记录本工具管理的数据。
-- 17 项测试已在 macOS 和 Windows CI 的 Python 3.11／3.13 环境通过，Windows 安装脚本、带空格的安装路径、Skill 安装与独立目录命令调用也已验证。[测试记录](https://github.com/200410080379/fab-library/actions/runs/42580101755)。**尚未登录真实 Epic 账号验证资源库和下载**。
+- 商店扩展：查询免费/限时免费资源，读取当前授权报价和所属账号，预览并领取指定零元资源，生成本地付费购物清单与官方商品链接。
+- 不提供自动付款、自动安装进项目、商品图片库、语义向量搜索或更新检测。标签和下载历史仅记录本工具管理的数据。
+- v0.2.0 的 37 项测试已在 macOS 通过；Windows CI 会同时验证 Python 3.11／3.13、安装脚本和可选 FabCLI 后端。**尚未登录真实 Epic 账号验证资源库、领取和下载**。详见 [VALIDATION.md](VALIDATION.md)。
 
 本项目与下载器都不是 Epic 官方产品。后端使用未公开接口，接口变化可能需要更新适配器。资源下载成功也不等于兼容任意引擎/平台；本版明确要求选择 UE 版本，平台默认为 Windows。
 
@@ -23,7 +24,7 @@ A Windows-first CLI and AI skill for managing and downloading the Unreal Engine 
 
 需要 Windows 上已安装 **Python 3.11 或更新版本**（标准 python.org 安装含 `py` 启动器和 pip）。本安装器不自动安装 Python，不需要管理员权限。
 
-1. 解压整个 `fab-library-windows-0.1.0.zip`，保留目录结构。
+1. 解压整个 `fab-library-windows-0.2.0.zip`，保留目录结构。
 2. 在解压目录打开 PowerShell，运行：
 
 ```powershell
@@ -47,7 +48,7 @@ fab-library --json library list --limit 20
 
 ```powershell
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --no-index --find-links .\wheels fab-library==0.1.0
+.\.venv\Scripts\python.exe -m pip install --no-index --find-links .\wheels fab-library==0.2.0
 .\.venv\Scripts\fab-library.exe --json doctor
 ```
 
@@ -88,6 +89,62 @@ fab-library --json library export --out .\my-fab-catalog.json
 ```
 
 `--json` 可放在任意命令层级；`--home` 必须放在子命令前。所有下载参数要求明确资源 ID 和 UE 版本，不会从多个同名结果或多个版本中替用户猜选。
+
+## 免费领取与付费清单（0.2.0）
+
+本期赠送资源的推荐用法是生成一次性的领取清单，再执行这份清单：
+
+```powershell
+fab-library --json freebies plan --out .\freebies-today.json
+# 核对输出中的账号、items 和 skipped 后：
+fab-library --json freebies apply .\freebies-today.json
+```
+
+计划 30 分钟内有效，默认最多检查 20 个候选（可设 `--limit`，最大 50）。执行只处理清单中的商品，逐项重新核对当前价格，跳过已拥有项；出现价格/账号/授权变化或不明结果时停止，并保存已完成条目的回执。可以用 `freebies apply PLAN.json --dry-run` 只检查清单。
+
+自动发现来自 UE 频道的 100% 折扣搜索，它不保证与 Epic 官网精选赠送清单完全一致。需要精确领取官网某几项时，用 `freebies plan --listing URL1 --listing URL2 --out PLAN.json` 指定已核对的链接。工具不创建计划任务、自启或后台轮询；此处的清单授权只覆盖本次列明的商品。
+
+商店功能使用可选 **FabCLI 0.1.0**。下载后端的 Epic OAuth 会话不包含领取所需的 Fab 网页会话，因此需要独立登录。两套会话都存于本工具数据目录，商店会话为 `store-session/`；不会读取浏览器或 Launcher 的登录信息。
+
+Windows 首次安装时可以执行 `scripts/install-windows.ps1 -WithStore`，或安装后单独执行下面第一行。商店安装器从上游 GitHub 下载固定版本并校验写死的 SHA-256；它需要联网，基础 CLI 的 wheels 安装仍然离线。Windows 商店登录还需要 Edge WebView2 Runtime。
+
+```powershell
+.\scripts\install-store-windows.ps1
+fab-library --json store doctor
+fab-library store login
+fab-library --json store account
+
+# 每次只读一页，默认 20 项；继续使用返回的 next_cursor
+fab-library --json store free --limit 20
+fab-library --json store free --limited-time --limit 20
+fab-library --json store search --query "Inventory" --limit 10
+
+# 接受 Fab 商品网址或 listing UUID；它与 library list 的 asset ID 不同
+fab-library --json store quote LISTING_UUID
+fab-library --json store claim LISTING_UUID --dry-run
+
+# 核对商品、当前账号和免费 offer 后才执行
+fab-library --json store claim LISTING_UUID --execute --expected-account ACCOUNT_ID --expected-offer OFFER_ID
+```
+
+`store claim` 默认只预览。执行会重新读取价格与所有权，要求**全部授权报价均为明确零元**，并核对预览中的账号 ID 和所选 offer ID。已拥有的资源直接跳过；领取后再查询所有权，无法验证时返回 `claim_outcome_unknown`，不要直接重试。
+
+此后端只暴露 offer ID，不提供可靠的个人/专业授权档位标签。它选择第一个明确零元 offer；需要指定某个授权档位时请在官方商品页选择。含收费或未知价格的混合授权、过期折扣、免费 Bundle 都转官方页面处理。工具不提交购物车、订单或付款请求，也不代勾选新 EULA 或解决验证码；遇到这类页面需要用户在官网处理后再继续。未公开接口的行为仍可能变化，自动化测试无法替代真实账号验证。
+
+付费资源只加入**本地清单**，不会加入 Fab 的在线购物车：
+
+```powershell
+fab-library --json store quote LISTING_UUID
+fab-library --json shopping add LISTING_UUID --offer OFFER_ID --dry-run
+fab-library --json shopping add LISTING_UUID --offer OFFER_ID
+fab-library --json shopping list
+fab-library --json shopping links
+fab-library --json shopping remove LISTING_UUID
+```
+
+清单保留报价时间，金额按币种分别汇总；它们是历史快照，不能当作结算总额。购买链接打开的是 Fab 官方商品页，实际授权选择、最终价格和付款在官网确认。需要更新报价时对同一商品再次 `shopping add`。
+
+领取后，用同一个 Epic 账号执行 `library sync` 才能更新可下载的 UE 资源；商店 Listing UUID 与下载 Asset ID 不应互换。可以通过 `FAB_LIBRARY_FABCLI` 指定受信任的 FabCLI 可执行文件路径，工具会拒绝其他版本。
 
 ## 数据与认证
 

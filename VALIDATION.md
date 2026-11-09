@@ -1,6 +1,6 @@
 # Validation — 2026-11-09
 
-Environment: macOS, Python 3.13.13. Windows is the intended primary deployment platform.
+Environments: macOS with Python 3.13.13, and GitHub-hosted Windows with Python 3.11 and 3.13. Windows is the primary deployment platform.
 
 Passed:
 
@@ -14,11 +14,14 @@ Passed:
 - Installed `--help`, `--json doctor`, fixture sync, Chinese tags, pagination and download dry run.
 - Installed `library sync` without login returns structured `auth_required` and exit code 4, without opening a browser or prompting.
 - Original upstream wheel and source archive checked against PyPI SHA-256 release metadata.
+- Windows CI: all 17 tests on both Python versions, package build, offline-wheel installer, installation path containing spaces, user PATH setup, Skill installation and installed-command execution outside the source directory.
 
 Not yet verified:
 
-- Windows PowerShell installer, Windows PATH/Skill discovery and DPAPI on a real Windows host.
-- Live Epic authentication, the user's actual catalog, CDN connectivity and real asset download.
+- Live Epic authentication and encrypted Windows session round trips with the user's account.
+- The user's actual catalog, CDN connectivity and real asset download.
 - HTTP compatibility with future changes to Fab's undocumented endpoints.
 
-The included Windows GitHub Actions workflow has not been submitted or run. All demonstration resource records are synthetic.
+Windows CI passed: https://github.com/200410080379/fab-library/actions/runs/42580101755
+
+The tested source commit is `a5303f1997eea745034bdb29a2930de8bac61f3d`; the subsequent publication update changes documentation only. All demonstration resource records are synthetic.

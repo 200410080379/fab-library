@@ -15,7 +15,7 @@ A Windows-first CLI and AI skill for managing and downloading the Unreal Engine 
 - 下载预览、独立目录下载、文件校验、失败续传、下载记录、串行队列。
 - 复用 `fab-downloader==1.3.0` 的登录、manifest 解析和分块下载，依赖版本固定。
 - 不提供资源购买/领取、自动安装进项目、商品图片库、语义向量搜索或更新检测。标签和下载历史仅记录本工具管理的数据。
-- 已在 macOS Python 环境进行单元测试和独立目录的已安装命令验证；**尚未在 Windows 实机执行安装器，也未登录真实账号验证下载**。发布包附 Windows CI 工作流，供在自己的仓库运行。
+- 17 项测试已在 macOS 和 Windows CI 的 Python 3.11／3.13 环境通过，Windows 安装脚本、带空格的安装路径、Skill 安装与独立目录命令调用也已验证。[测试记录](https://github.com/200410080379/fab-library/actions/runs/42580101755)。**尚未登录真实 Epic 账号验证资源库和下载**。
 
 本项目与下载器都不是 Epic 官方产品。后端使用未公开接口，接口变化可能需要更新适配器。资源下载成功也不等于兼容任意引擎/平台；本版明确要求选择 UE 版本，平台默认为 Windows。
 

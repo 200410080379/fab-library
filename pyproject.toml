@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fab-library"
-version = "0.2.0"
+version = "0.3.0"
 description = "Windows-first, agent-friendly manager for your owned Fab Unreal Engine assets"
 requires-python = ">=3.11"
 dependencies = ["fab-downloader==1.3.0"]

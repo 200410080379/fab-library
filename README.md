@@ -1,8 +1,8 @@
-# Fab Library 0.2.0
+# Fab Library 0.3.0
 
-Windows 优先的个人 Fab 资源管家：通过 CLI + AI Skill，查询自己已拥有的 Unreal Engine 资源，维护中文标签，按引擎版本下载到独立目录。
+支持 Windows 和 macOS 的个人 Fab 资源管家：通过 CLI + AI Skill 管理资源目录、查询免费商品、领取已授权的零元资源，并按引擎版本下载到独立目录。
 
-A Windows-first CLI and AI skill for managing and downloading the Unreal Engine assets you own on Fab.
+A CLI and AI skill for managing, claiming and downloading Fab assets on Windows and macOS.
 
 [下载工具包 / Releases](https://github.com/200410080379/fab-library/releases) · [反馈问题 / Issues](https://github.com/200410080379/fab-library/issues) · [Windows CI](https://github.com/200410080379/fab-library/actions/workflows/windows.yml)
 
@@ -16,7 +16,7 @@ A Windows-first CLI and AI skill for managing and downloading the Unreal Engine 
 - 复用 `fab-downloader==1.3.0` 的登录、manifest 解析和分块下载，依赖版本固定。
 - 商店扩展：查询免费/限时免费资源，读取当前授权报价和所属账号，预览并领取指定零元资源，生成本地付费购物清单与官方商品链接。
 - 不提供自动付款、自动安装进项目、商品图片库、语义向量搜索或更新检测。标签和下载历史仅记录本工具管理的数据。
-- v0.2.0 的 37 项测试已在 macOS 和 Windows CI 的 Python 3.11／3.13 环境通过，安装脚本与可选 FabCLI 后端启动检查也已通过。[Windows 测试记录](https://github.com/200410080379/fab-library/actions/runs/42589142044)。**尚未登录真实 Epic 账号验证资源库、领取和下载**。详见 [VALIDATION.md](VALIDATION.md)。
+- v0.3.0 的 46 项本地测试已通过，Mac 原生模块已编译、安装，并验证了真实 Epic/Fab 登录、动画筛选、分页查询与所有权读取。已验证真实零元领取与入库查询；实际文件下载尚待账号验证。详见 [VALIDATION.md](VALIDATION.md)。
 
 本项目与下载器都不是 Epic 官方产品。后端使用未公开接口，接口变化可能需要更新适配器。资源下载成功也不等于兼容任意引擎/平台；本版明确要求选择 UE 版本，平台默认为 Windows。
 
@@ -24,7 +24,7 @@ A Windows-first CLI and AI skill for managing and downloading the Unreal Engine 
 
 需要 Windows 上已安装 **Python 3.11 或更新版本**（标准 python.org 安装含 `py` 启动器和 pip）。本安装器不自动安装 Python，不需要管理员权限。
 
-1. 解压整个 `fab-library-windows-0.2.0.zip`，保留目录结构。
+1. 解压对应版本的工具包，保留目录结构。
 2. 在解压目录打开 PowerShell，运行：
 
 ```powershell
@@ -48,11 +48,36 @@ fab-library --json library list --limit 20
 
 ```powershell
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --no-index --find-links .\wheels fab-library==0.2.0
+.\.venv\Scripts\python.exe -m pip install --no-index --find-links .\wheels fab-library==0.3.0
 .\.venv\Scripts\fab-library.exe --json doctor
 ```
 
 此方式用完整可执行文件路径调用；需要全局命令时，手动将 `.venv\Scripts` 加入用户 PATH。Skill 可将 `skills\fab-library` 文件夹复制到个人 `.codex\skills` 中。
+
+## macOS 安装与领取
+
+需要 macOS 14+、Xcode/Command Line Tools、uv。Mac 商店功能使用本仓库的原生 Swift/WebKit 模块，不需要 Windows 的 FabCLI 可执行文件。
+
+```bash
+bash scripts/install-macos.sh
+fab-library --json store doctor
+fab-library store login
+fab-library --json store account
+fab-library --json store free --category animation --all-formats --limit 100
+```
+
+登录窗口加载 Epic/Fab 官方页面，由用户完成登录/验证；CLI 先兑换短期授权码，再建立 Fab 网页会话。WebKit 使用独立的数据存储标识，不读取 Safari、Chrome 或 Launcher 的 cookies。OAuth 文件仅当前用户可读、未加密；网站会话由 WebKit 保存在本机。请求模块只开放列明的 Fab 查询及 `add-to-library` 接口，不开放订单/付款接口。Swift 源码位于 `macos/FabBridge.swift`。
+
+Mac 后端可读取官方授权标签，并绑定精确 offer ID。用户确认适用档位后，可以显式选择：
+
+```bash
+fab-library --json store quote LISTING_UUID --license-tier personal
+fab-library --json store claim LISTING_UUID --license-tier personal --execute --expected-account ACCOUNT_ID --expected-offer OFFER_ID
+```
+
+指定档位时只检查并领取该档位的零元 offer；其他档位收费不影响该明确选择。缺少可靠标签、档位不匹配或报价非零时会拒绝。Personal/Professional 由用户按 Fab 官方规则选择，工具不推断用户收入。未指定档位时仍保留“所有报价都必须为零”的保守模式。Windows 的 FabCLI 后端不支持此精确档位模式。
+
+`--category animation` 使用 Fab 的 `listing_types=animation`，`--all-formats` 去掉默认 UE 频道限制。分页应跟随返回的 `next_cursor`，不能将一页结果当作全部。
 
 ## 常用操作
 

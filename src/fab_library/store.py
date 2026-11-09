@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from urllib.parse import urlparse
 import uuid
 
@@ -90,6 +91,31 @@ def offers_from(raw):
             }
         )
     return result
+
+
+def attach_licenses(listing, offers):
+    licenses = listing.get("licenses") or []
+    if not isinstance(licenses, list):
+        return offers
+    for offer in offers:
+        matches = [
+            x
+            for x in licenses
+            if isinstance(x, dict) and x.get("offerId") == offer["offer_id"]
+        ]
+        if len(matches) == 1:
+            license = matches[0]
+            offer["license_label"] = license.get("name")
+            offer["license_tier"] = license.get("slug")
+            offer["is_cc"] = license.get("isCc") is True or license.get("isCc0") is True
+    return offers
+
+
+def tier_offers(offers, tier):
+    if tier not in {"personal", "professional"}:
+        raise Failure("invalid_license_tier", "Choose personal or professional.")
+    exact = [x for x in offers if x.get("license_tier") == tier]
+    return exact or [x for x in offers if x.get("is_cc") is True]
 
 
 class FabCLIClient:
@@ -217,7 +243,14 @@ class FabCLIClient:
 class Store:
     def __init__(self, home, client=None):
         self.home = Path(home)
-        self.client = client or FabCLIClient(home)
+        if client is not None:
+            self.client = client
+        elif sys.platform == "darwin":
+            from .mac_store import MacStoreClient
+
+            self.client = MacStoreClient(home)
+        else:
+            self.client = FabCLIClient(home)
 
     def account(self):
         raw = self.client.call("auth", "whoami")
@@ -231,21 +264,27 @@ class Store:
         return {"id": account_id, "display_name": raw.get("display_name", "")}
 
     def doctor(self):
+        version = getattr(self.client, "backend_version", FABCLI_VERSION)
+        name = getattr(self.client, "backend_name", "FabCLI")
         try:
             self.client.check()
         except Failure as exc:
             return {
                 "available": False,
-                "expected_version": FABCLI_VERSION,
+                "expected_version": version,
+                "backend": name,
                 "reason": exc.kind,
-                "next_step": "Run scripts/install-store-windows.ps1",
+                "next_step": "Run scripts/install-macos.sh"
+                if sys.platform == "darwin"
+                else "Run scripts/install-store-windows.ps1",
             }
         try:
             raw = self.client.call("auth", "status")
             fab = raw.get("fab") or {}
             return {
                 "available": True,
-                "version": FABCLI_VERSION,
+                "version": version,
+                "backend": name,
                 "authenticated": raw.get("authenticated") is True,
                 "fab_session_present": fab.get("session_present") is True,
                 "fab_needs_refresh": fab.get("needs_refresh", True),
@@ -254,14 +293,33 @@ class Store:
         except Failure as exc:
             return {
                 "available": True,
-                "version": FABCLI_VERSION,
+                "version": version,
+                "backend": name,
                 "authenticated": False,
                 "reason": exc.kind,
                 "next_step": "store login",
             }
 
-    def search(self, query="", free=False, limited_time=False, limit=20, cursor=None):
-        args = ["search", "--count", str(limit), "--filter", "channels=unreal-engine"]
+    def search(
+        self,
+        query="",
+        free=False,
+        limited_time=False,
+        limit=20,
+        cursor=None,
+        category=None,
+        all_formats=False,
+    ):
+        args = ["search", "--count", str(limit)]
+        if not all_formats:
+            args += ["--filter", "channels=unreal-engine"]
+        if category:
+            if category != "animation":
+                raise Failure(
+                    "invalid_category",
+                    "Supported category is animation (Fab's official Animations product type).",
+                )
+            args += ["--filter", "listing_types=" + category]
         if query:
             args += ["--query", query]
         if free:
@@ -300,10 +358,11 @@ class Store:
             "next_cursor": cursors.get("next"),
             "count": len(items),
             "prices_verified_for_claim": False,
-            "channel": "unreal-engine",
+            "channel": "all" if all_formats else "unreal-engine",
+            "category": category,
         }
 
-    def quote(self, value):
+    def quote(self, value, license_tier=None):
         uid = listing_id(value)
         account = self.account()
         listing = self.client.call("listing", uid)
@@ -311,7 +370,8 @@ class Store:
             raise Failure(
                 "store_schema_changed", "Listing identity did not match request.", 5
             )
-        offers = offers_from(self.client.call("prices", uid))
+        offers = attach_licenses(listing, offers_from(self.client.call("prices", uid)))
+        considered = tier_offers(offers, license_tier) if license_tier else offers
         state = self.client.call("ownership", uid)
         if state.get("listingUid") != uid or not isinstance(state.get("owned"), bool):
             raise Failure(
@@ -330,23 +390,27 @@ class Store:
             reason = "already_owned"
         elif str(listing.get("listingType", "")).casefold() == "bundle":
             reason = "bundle_requires_official_checkout"
+        elif license_tier and not getattr(self.client, "supports_license_tiers", False):
+            reason = "backend_cannot_pin_license_tier"
+        elif license_tier and len(considered) != 1:
+            reason = "requested_license_tier_unavailable_or_ambiguous"
         elif (
-            not offers
+            not considered
             or any(
                 not isinstance(x["offer_id"], str)
                 or not x["offer_id"]
                 or x["amount"] is None
-                for x in offers
+                for x in considered
             )
             or len({x["offer_id"] for x in offers}) != len(offers)
         ):
             reason = "unknown_offer_price"
-        elif any(Decimal(x["amount"]) != 0 for x in offers):
+        elif any(Decimal(x["amount"]) != 0 for x in considered):
             reason = "priced_or_mixed_offers_use_browser"
-        elif not hint:
+        elif not hint and not license_tier:
             reason = "listing_not_marked_free"
         if reason is None:
-            for offer in offers:
+            for offer in considered:
                 if offer["discount_end"]:
                     try:
                         end = datetime.fromisoformat(offer["discount_end"])
@@ -357,7 +421,7 @@ class Store:
                     except (ValueError, TypeError):
                         reason = "unknown_discount_expiry"
         # Upstream selects the first explicit zero-price offer. All offers must be zero here.
-        selected = offers[0]["offer_id"] if offers and reason is None else None
+        selected = considered[0]["offer_id"] if considered and reason is None else None
         return {
             "listing_id": uid,
             "title": listing.get("title") or uid,
@@ -369,19 +433,28 @@ class Store:
             "claim_eligible": reason is None,
             "claim_block_reason": reason,
             "selected_offer_id": selected,
-            "license_selection": "FabCLI's first explicit zero-price offer; tier labels are not exposed by this backend.",
+            "requested_license_tier": license_tier,
+            "license_selection": license_tier
+            or "First explicit zero-price offer; all offers must be zero when no tier is selected.",
             "license_url": "https://www.fab.com/eula",
             "payment_submitted": False,
         }
 
-    def claim(self, value, execute=False, expected_account=None, expected_offer=None):
+    def claim(
+        self,
+        value,
+        execute=False,
+        expected_account=None,
+        expected_offer=None,
+        license_tier=None,
+    ):
         if execute and (not expected_account or not expected_offer):
             raise Failure(
                 "claim_confirmation_required",
                 "Preview first; execution needs --expected-account and --expected-offer from the reviewed quote.",
             )
         quote = self.quote(
-            value
+            value, license_tier=license_tier
         )  # Re-read current prices and ownership even when executing.
         if not execute:
             return {"dry_run": True, **quote}
@@ -412,7 +485,13 @@ class Store:
                 "The selected free offer changed; review a new quote. No claim submitted.",
                 6,
             )
-        result = self.client.call("claim", quote["listing_id"])
+        if hasattr(self.client, "claim_exact"):
+            options = {"license_tier": license_tier} if license_tier else {}
+            result = self.client.claim_exact(
+                quote["listing_id"], expected_offer, **options
+            )
+        else:
+            result = self.client.call("claim", quote["listing_id"])
         if result.get("ok") is not True:
             raise Failure(
                 "free_claim_rejected",

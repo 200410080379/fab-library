@@ -169,6 +169,14 @@ def parser():
         search.add_argument("--query", default="")
         search.add_argument("--limit", type=bounded, default=20)
         search.add_argument("--cursor")
+        search.add_argument(
+            "--category", choices=("animation",), help="Fab official product type"
+        )
+        search.add_argument(
+            "--all-formats",
+            action="store_true",
+            help="Do not restrict the search to the UE channel",
+        )
         filters = search.add_mutually_exclusive_group()
         filters.add_argument("--free", action="store_true")
         filters.add_argument("--limited-time", action="store_true")
@@ -176,11 +184,13 @@ def parser():
         "quote", help="Read current prices, ownership and official purchase URL"
     )
     q.add_argument("listing")
+    q.add_argument("--license-tier", choices=("personal", "professional"))
     c = a.add_parser(
         "claim",
         help="Preview a zero-price claim; --execute submits only reviewed free listings",
     )
     c.add_argument("listing")
+    c.add_argument("--license-tier", choices=("personal", "professional"))
     mode = c.add_mutually_exclusive_group()
     mode.add_argument("--execute", action="store_true")
     mode.add_argument(
@@ -218,6 +228,7 @@ def parser():
     )
     plan.add_argument("--out", required=True, type=Path)
     plan.add_argument("--limit", type=bounded, default=20)
+    plan.add_argument("--license-tier", choices=("personal", "professional"))
     plan.add_argument(
         "--listing",
         action="append",
@@ -262,7 +273,9 @@ def dispatch(args, home, provider_factory=Provider, store_factory=Store):
     if args.command == "freebies":
         store = store_factory(home)
         if args.action == "plan":
-            return create_plan(store, args.out, args.limit, args.listing)
+            return create_plan(
+                store, args.out, args.limit, args.listing, args.license_tier
+            )
         return apply_plan(store, home, args.plan_file, args.dry_run)
     if args.command in {"store", "shopping"}:
         store = store_factory(home)
@@ -297,11 +310,17 @@ def dispatch(args, home, provider_factory=Provider, store_factory=Store):
                 limited_time=args.limited_time,
                 limit=args.limit,
                 cursor=args.cursor,
+                category=args.category,
+                all_formats=args.all_formats,
             )
         if args.action == "quote":
-            return store.quote(args.listing)
+            return store.quote(args.listing, license_tier=args.license_tier)
         return store.claim(
-            args.listing, args.execute, args.expected_account, args.expected_offer
+            args.listing,
+            args.execute,
+            args.expected_account,
+            args.expected_offer,
+            license_tier=args.license_tier,
         )
     provider = provider_factory(home)
     if args.command == "auth":

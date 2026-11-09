@@ -24,3 +24,9 @@ For downloads, Fab Library calls the pinned Python library through a narrow adap
 The optional installer fetches the executable directly from the upstream release, verifies the pinned archive hash and copies upstream notices. The executable is not redistributed inside Fab Library's release archive. `FABCLI_TOKEN_PATH` isolates its token, web session and WebView storage under Fab Library's `store-session` directory.
 
 The adapter permits search, listing/offer/ownership reads, explicit login and zero-price claims. Paid shopping is a local shortlist with official links; there are no cart/order/payment endpoints. Claim logic was checked against `src/cli/fab.rs` and serialization against `fab_search.rs`; the wrapper adds all-offers-zero checks, account/offer preconditions and post-claim ownership verification. The backend selects the first zero-price offer and does not expose reliable license tier labels.
+
+## macOS native backend (0.3.0)
+
+The repository's Swift/WebKit helper uses Apple's system Cocoa/WebKit frameworks and an isolated `WKWebsiteDataStore` identifier (macOS 14+). Python manages OAuth through the existing fab-downloader dependency. Fab endpoint shapes and the CSRF header name were checked against the FabCLI/egs-api-rs sources above; the helper does not embed or redistribute their Rust executable.
+
+Unlike the Windows FabCLI serialization, the native reader retains official `licenses` metadata, allowing a user-selected personal/professional zero-price offer to be bound by exact offer ID. Both the selected license and price are rechecked immediately before the write. This is an optional explicit mode; the default still requires all offers to be zero.

@@ -9,7 +9,7 @@ from .catalog import Failure, now
 from .store import listing_id
 
 
-def create_plan(store, out, limit=20, listings=None):
+def create_plan(store, out, limit=20, listings=None, license_tier=None):
     if not 1 <= limit <= 50:
         raise Failure(
             "invalid_limit", "A single promotion plan supports 1–50 candidates."
@@ -30,7 +30,11 @@ def create_plan(store, out, limit=20, listings=None):
         source = "UE listings with 100% discount; verify against Fab's official current promotion"
     items, skipped = [], []
     for uid in ids:
-        quote = store.quote(uid)
+        quote = (
+            store.quote(uid, license_tier=license_tier)
+            if license_tier
+            else store.quote(uid)
+        )
         if quote["account"]["id"] != account["id"]:
             raise Failure(
                 "account_changed",
@@ -60,6 +64,7 @@ def create_plan(store, out, limit=20, listings=None):
         "schema_version": 1,
         "kind": "fab-library-freebies-plan",
         "account": account,
+        "license_tier": license_tier,
         "created_at": created.isoformat(),
         "expires_at": (created + timedelta(minutes=30)).isoformat(),
         "source": source,
@@ -94,6 +99,8 @@ def read_plan(path):
     ):
         raise Failure("invalid_plan", "Plan lacks an account identity.")
     items = plan.get("items")
+    if plan.get("license_tier") not in {None, "personal", "professional"}:
+        raise Failure("invalid_plan", "Unknown license tier in plan.")
     if not isinstance(items, list) or len(items) > 50:
         raise Failure("invalid_plan", "Plan must contain at most 50 items.")
     clean = []
@@ -132,6 +139,7 @@ def read_plan(path):
         raise Failure("invalid_plan", "Invalid plan timestamps.") from None
     return {
         "account": {"id": account["id"]},
+        "license_tier": plan.get("license_tier"),
         "items": clean,
         "plan_file": str(path),
         "expires_at": plan["expires_at"],
@@ -174,11 +182,17 @@ def apply_plan(store, home, path, dry_run=False):
     save()
     for row in plan["items"]:
         try:
+            options = (
+                {"license_tier": plan["license_tier"]}
+                if plan.get("license_tier")
+                else {}
+            )
             outcome = store.claim(
                 row["listing_id"],
                 execute=True,
                 expected_account=plan["account"]["id"],
                 expected_offer=row["expected_offer"],
+                **options,
             )
             result["completed"].append(outcome)
             save()

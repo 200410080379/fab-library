@@ -5,7 +5,7 @@ description: 用 fab-library CLI 管理 Fab UE 资源库、标签和下载，查
 
 # Fab Library
 
-这是 Windows 优先的个人 CLI，下载依赖 `fab-downloader 1.3.0`，可选商店后端为 `FabCLI 0.1.0`；均不属于 Epic 官方工具。
+这是支持 Windows/Mac 的个人 CLI。下载依赖 `fab-downloader 1.3.0`；Windows 商店后端为 `FabCLI 0.1.0`，Mac 使用本工具的 Swift/WebKit 后端。均不属于 Epic 官方工具。
 
 ## 开始
 
@@ -36,7 +36,7 @@ description: 用 fab-library CLI 管理 Fab UE 资源库、标签和下载，查
 
 ## 商店与免费领取
 
-商店功能先运行 `fab-library --json store doctor`。需要安装后端时使用交付包的 `scripts/install-store-windows.ps1`，安装器固定版本并核验 SHA-256。让用户在本机运行 `fab-library store login` 完成 Epic/Fab 登录；下载的 `auth login` 不能代替商店网页会话。
+商店功能先运行 `fab-library --json store doctor`。Windows 使用 `scripts/install-store-windows.ps1`；Mac 使用 `bash scripts/install-macos.sh`（macOS 14+，需 Xcode/CLT 和 uv）。让用户在本机运行 `fab-library store login` 完成 Epic/Fab 登录；下载的 `auth login` 不能代替商店网页会话。Mac 授权码由本机进程间管道处理，不应请求用户在聊天中粘贴凭据。
 
 用 `store account` 查看领取所属账号。若要领取后下载，先确认它与 `auth status` 中下载账号一致。商店的 Listing UUID 与下载目录中的 Asset ID 不同；领取后通过 `library sync` 获取可下载条目。
 
@@ -48,7 +48,9 @@ description: 用 fab-library CLI 管理 Fab UE 资源库、标签和下载，查
 
 对用户指定或明确授权的清单，逐项 `store claim LISTING_UUID --dry-run` 查看当前账号、价格、所有权和 `selected_offer_id`。正常执行需要 `--execute --expected-account ACCOUNT_ID --expected-offer OFFER_ID`，参数来自刚核对的预览；若既有授权覆盖该具体领取，无需再重复询问。范围不明确则先展示候选。
 
-领取命令只接受所有报价明确为零的条目。出现混合收费授权、未知价格、免费 Bundle 或过期折扣时，使用返回的官网链接。不要用底层 FabCLI 绕过本工具的拒绝结果。当前后端不提供可靠授权档位标签；用户指定个人/专业等档位时，转官方商品页选择，不要猜 offer ID。
+未指定档位时，领取命令只接受所有报价明确为零的条目。Mac 可从官方数据读取标签并使用 `--license-tier personal|professional` 绑定精确 offer：先确认用户适用的档位，再领取这个档位的零元报价。不要推断用户的收入或用其他付费档位代替。Windows 后端缺少可靠的档位选择能力，此时转官方商品页处理。未知价格、免费 Bundle、过期折扣等拒绝结果不应绕过。
+
+用户要求 Fab 的全部免费动画时，使用 `store free --category animation --all-formats --limit 100`，跟随所有 `next_cursor` 完成去重；不要额外加 UE 格式或关键词限制。已明确授权领取此筛选结果时，可在核对每项当前报价与账号后逐项执行，无需反复确认相同领取范围。遇到新 EULA/验证码/授权档位歧义仍按具体情况处理。
 
 遇到新 EULA、验证码或登录验证时让用户在官方页面完成。`claim_outcome_unknown` 表示可能已经提交，先检查官网/所有权，不要盲目重试。只有 `verified:true` 才能报告本次领取已确认成功。
 

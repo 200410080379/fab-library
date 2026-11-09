@@ -23,7 +23,7 @@ if (-not (Test-Path (Join-Path $Venv 'Scripts\python.exe'))) {
     if ($LASTEXITCODE -ne 0) { throw 'Could not create the Python environment.' }
 }
 $Python = Join-Path $Venv 'Scripts\python.exe'
-& $Python -m pip install --no-index --find-links $WheelDir --upgrade 'fab-library==0.2.0'
+& $Python -m pip install --no-index --find-links $WheelDir --upgrade 'fab-library==0.3.0'
 if ($LASTEXITCODE -ne 0) { throw 'Package installation failed.' }
 $Bin = Join-Path $InstallRoot 'bin'
 New-Item -ItemType Directory -Path $Bin -Force | Out-Null
